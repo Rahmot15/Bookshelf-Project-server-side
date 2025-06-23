@@ -56,10 +56,31 @@ async function run() {
 
         });
 
+        app.put('/books/:id', async (req, res) => {
+            const { id } = req.params
+            const { book_title, cover_photo, total_page, book_author, book_category, reading_status, book_overview, upvote } = req.body
+            const query = { _id: new ObjectId(id) }
+            const updateData = {
+                $set: {
+                    book_title,
+                    cover_photo,
+                    total_page,
+                    book_author,
+                    book_category,
+                    reading_status,
+                    book_overview,
+                    upvote
+
+                }
+            }
+            const result = await bookshelfCollections.updateOne(query, updateData)
+            res.send(result)
+        })
+
 
         app.delete('/books/:id', async (req, res) => {
             const id = req.params.id
-            const query = {_id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const result = await bookshelfCollections.deleteOne(query)
             res.send(result)
         })
