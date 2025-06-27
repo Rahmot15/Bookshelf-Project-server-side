@@ -21,13 +21,22 @@ const client = new MongoClient(uri, {
     }
 });
 
+const verifyFirebaseToken = async (req, res, next) => {
+    console.log( 'verify', req.headers);
+
+    next()
+}
+
 async function run() {
     try {
         await client.connect();
 
         const bookshelfCollections = client.db("Bookshelfdb").collection('books')
 
-        app.get('/books', async (req, res) => {
+        app.get('/books', verifyFirebaseToken, async  (req, res) => {
+
+            
+
             const result = await bookshelfCollections.find().toArray()
             res.send(result)
         })
@@ -42,6 +51,8 @@ async function run() {
 
         app.post('/books', async (req, res) => {
             const newBooks = req.body
+            
+            
             const result = await bookshelfCollections.insertOne(newBooks)
             res.send(result)
         })
@@ -54,6 +65,16 @@ async function run() {
             );
             res.send(result);
 
+        });
+
+        app.patch("/books/:id/status", async (req, res) => {
+            const id = req.params.id;
+            const { reading_status } = req.body;
+            const result = await bookshelfCollections.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { reading_status } }
+            );
+            res.send(result);
         });
 
         app.put('/books/:id', async (req, res) => {
