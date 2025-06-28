@@ -61,6 +61,7 @@ async function run() {
     try {
 
         const bookshelfCollections = client.db("Bookshelfdb").collection('books')
+        const reviewsCollection = client.db("Bookshelfdb").collection("reviews");
 
         app.get('/books', async (req, res) => {
 
@@ -84,6 +85,63 @@ async function run() {
             const result = await bookshelfCollections.find(query).toArray()
             res.send(result)
         })
+
+        // Review apis
+
+        app.get('/books/:id/reviews', async (req, res) => {
+            const bookId = req.params.id;
+            console.log("Querying for bookId:", typeof bookId);
+
+            try {
+                const reviews = await reviewsCollection
+                    .find({ bookId: bookId })
+                    .sort({ createdAt: -1 })
+                    .toArray();
+                console.log("Fetched reviews:", reviews);
+                res.send(reviews);
+            } catch (error) {
+                console.error("Error fetching reviews:", error);
+                res.status(500).send({ message: "Failed to fetch reviews" });
+            }
+        });
+
+
+
+        app.post('/books/:id/reviews', verifyFirebaseToken, async (req, res) => {
+            const bookId = req.params.id;
+            const { review, rating, createdAt, user } = req.body;
+
+            if (!review || !rating || !user?.email) {
+                return res.status(400).send({ message: "Missing fields" });
+            }
+
+            try {
+                const existing = await reviewsCollection.findOne({
+                    bookId: bookId,
+                    "user.email": user.email,
+                });
+
+                if (existing) {
+                    return res.status(409).send({ message: "You have already reviewed this book." });
+                }
+
+                const newReview = {
+                    bookId: bookId,
+                    review,
+                    rating,
+                    createdAt,
+                    user,
+                };
+
+                const result = await reviewsCollection.insertOne(newReview);
+                res.status(201).send(result);
+            } catch (error) {
+                console.error("Error saving review:", error);
+                res.status(500).send({ message: "Failed to save review" });
+            }
+        });
+
+
 
         app.post('/books', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
             const newBook = req.body;
