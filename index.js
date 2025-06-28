@@ -2,6 +2,9 @@ const express = require('express')
 const cors = require('cors');
 require('dotenv').config()
 
+const admin = require("firebase-admin");
+const serviceAccount = require("./firebase-admin-service.json");
+
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express()
 const port = process.env.PORT || 5000
@@ -21,21 +24,45 @@ const client = new MongoClient(uri, {
     }
 });
 
-const verifyFirebaseToken = async (req, res, next) => {
-    console.log( 'verify', req.headers);
 
-    next()
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+
+const verifyFirebaseToken = async (req, res, next) => {
+    const authHeader = req.headers?.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).send({ message: 'unauthorized access' })
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = await admin.auth().verifyIdToken(token)
+        req.decoded = decoded
+        next()
+    }
+    catch {
+        return res.status(401).send({ message: 'unauthorized access' })
+    }
+}
+
+const verifyTokenEmail = (req, res, next) => {
+    if (req.query.email !== req.decoded.email) {
+        return res.status(403).send({ message: 'forbidden access' });
+    }
+    next();
 }
 
 async function run() {
     try {
-        await client.connect();
 
         const bookshelfCollections = client.db("Bookshelfdb").collection('books')
 
-        app.get('/books', verifyFirebaseToken, async  (req, res) => {
-
-            
+        app.get('/books', async (req, res) => {
 
             const result = await bookshelfCollections.find().toArray()
             res.send(result)
@@ -49,15 +76,23 @@ async function run() {
 
         })
 
-        app.post('/books', async (req, res) => {
-            const newBooks = req.body
-            
-            
-            const result = await bookshelfCollections.insertOne(newBooks)
+        app.get('/myBooks', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
+            const email = req.query.email;
+            const query = {
+                email: email
+            }
+            const result = await bookshelfCollections.find(query).toArray()
             res.send(result)
         })
 
-        app.patch('/books/:id/upvote', async (req, res) => {
+        app.post('/books', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
+            const newBook = req.body;
+
+            const result = await bookshelfCollections.insertOne(newBook);
+            res.send(result);
+        });
+
+        app.patch('/books/:id/upvote', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
             const { id } = req.params;
             const result = await bookshelfCollections.updateOne(
                 { _id: new ObjectId(id) },
@@ -67,7 +102,7 @@ async function run() {
 
         });
 
-        app.patch("/books/:id/status", async (req, res) => {
+        app.patch("/books/:id/status", verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
             const id = req.params.id;
             const { reading_status } = req.body;
             const result = await bookshelfCollections.updateOne(
@@ -77,7 +112,7 @@ async function run() {
             res.send(result);
         });
 
-        app.put('/books/:id', async (req, res) => {
+        app.put('/books/:id', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
             const { id } = req.params
             const { book_title, cover_photo, total_page, book_author, book_category, reading_status, book_overview, upvote } = req.body
             const query = { _id: new ObjectId(id) }
@@ -99,7 +134,7 @@ async function run() {
         })
 
 
-        app.delete('/books/:id', async (req, res) => {
+        app.delete('/books/:id', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await bookshelfCollections.deleteOne(query)
