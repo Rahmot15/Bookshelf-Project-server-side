@@ -87,7 +87,6 @@ async function run() {
 
         app.post('/books', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
             const newBook = req.body;
-
             const result = await bookshelfCollections.insertOne(newBook);
             res.send(result);
         });
@@ -142,8 +141,8 @@ async function run() {
         })
 
 
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
 
     }
