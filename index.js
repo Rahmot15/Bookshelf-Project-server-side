@@ -141,6 +141,76 @@ async function run() {
             }
         });
 
+        app.put('/books/:bookId/reviews/:reviewId', verifyFirebaseToken, async (req, res) => {
+            const { bookId, reviewId } = req.params;
+            const { review, rating } = req.body;
+            const userEmail = req.decoded.email;
+
+            if (!review || !rating) {
+                return res.status(400).send({ message: "Missing fields" });
+            }
+
+            try {
+                const existingReview = await reviewsCollection.findOne({
+                    _id: new ObjectId(reviewId),
+                    bookId: bookId,
+                });
+
+                if (!existingReview) {
+                    return res.status(404).send({ message: "Review not found" });
+                }
+
+                if (existingReview.user.email !== userEmail) {
+                    return res.status(403).send({ message: "You can only edit your own reviews" });
+                }
+
+                const result = await reviewsCollection.updateOne(
+                    { _id: new ObjectId(reviewId) },
+                    {
+                        $set: {
+                            review,
+                            rating,
+                            updatedAt: new Date().toISOString()
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error("Error updating review:", error);
+                res.status(500).send({ message: "Failed to update review" });
+            }
+        });
+
+        app.delete('/books/:bookId/reviews/:reviewId', verifyFirebaseToken, async (req, res) => {
+            const { bookId, reviewId } = req.params;
+            const userEmail = req.decoded.email;
+
+            try {
+                const existingReview = await reviewsCollection.findOne({
+                    _id: new ObjectId(reviewId),
+                    bookId: bookId,
+                });
+
+                if (!existingReview) {
+                    return res.status(404).send({ message: "Review not found" });
+                }
+
+                if (existingReview.user.email !== userEmail) {
+                    return res.status(403).send({ message: "You can only delete your own reviews" });
+                }
+
+                const result = await reviewsCollection.deleteOne({
+                    _id: new ObjectId(reviewId)
+                });
+
+                res.send(result);
+            } catch (error) {
+                console.error("Error deleting review:", error);
+                res.status(500).send({ message: "Failed to delete review" });
+            }
+        });
+
 
 
         app.post('/books', verifyFirebaseToken, verifyTokenEmail, async (req, res) => {
